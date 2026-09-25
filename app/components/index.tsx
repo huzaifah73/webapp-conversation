@@ -617,7 +617,12 @@ const Main: FC<IMainProps> = () => {
             ...responseItem,
           }
         }))
-      },
+onTTSChunk: (messageId, audioStr, audioType) => {
+  console.log('TTS CHUNK:', messageId, audioType)
+},
+onTTSEnd: (messageId, audioStr) => {
+  console.log('TTS END:', messageId, audioStr)
+},
     })
   }
 
