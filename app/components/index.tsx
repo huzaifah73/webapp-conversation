@@ -173,6 +173,8 @@ const Main: FC<IMainProps> = () => {
   */
   const [chatList, setChatList, getChatList] = useGetState<ChatItem[]>([])
   const chatListDomRef = useRef<HTMLDivElement>(null)
+const ttsChunksRef = useRef<string[]>([])
+const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
   useEffect(() => {
     // scroll to bottom with page-level scrolling
     if (chatListDomRef.current) {
@@ -619,9 +621,13 @@ const Main: FC<IMainProps> = () => {
         }))
 onTTSChunk: (messageId, audioStr, audioType) => {
   console.log('TTS CHUNK:', messageId, audioType)
+  ttsChunksRef.current.push(audioStr)
 },
 onTTSEnd: (messageId, audioStr) => {
   console.log('TTS END:', messageId, audioStr)
+ console.log('TTS END:', messageId)
+  console.log('TTS AUDIO LENGTH:', audioStr?.length)
+  console.log('TTS AUDIO PREVIEW:', audioStr?.slice(0, 50))
 },
     })
   }
