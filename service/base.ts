@@ -131,8 +131,11 @@ interface IOtherOptions {
   onWorkflowFinished?: IOnWorkflowFinished
   onNodeStarted?: IOnNodeStarted
   onNodeFinished?: IOnNodeFinished
+  onTTSChunk?: IOnTTSChunk,
+onTTSEnd?: IOnTTSEnd,
 }
-
+export type IOnTTSChunk = (messageId: string, audioStr: string, audioType?: string) => void
+export type IOnTTSEnd = (messageId: string, audioStr: string) => void
 function unicodeToChar(text: string) {
   return text.replace(/\\u[0-9a-f]{4}/g, (_match, p1) => {
     return String.fromCharCode(parseInt(p1, 16))
@@ -211,6 +214,19 @@ const handleStream = (
             else if (bufferObj.event === 'message_end') {
               onMessageEnd?.(bufferObj as MessageEnd)
             }
+              else if (bufferObj.event === 'tts_message') {
+  onTTSChunk?.(
+    bufferObj.message_id,
+    bufferObj.audio,
+    bufferObj.audio_type,
+  )
+}
+else if (bufferObj.event === 'tts_message_end') {
+  onTTSEnd?.(
+    bufferObj.message_id,
+    bufferObj.audio,
+  )
+}
             else if (bufferObj.event === 'message_replace') {
               onMessageReplace?.(bufferObj as MessageReplace)
             }
@@ -367,6 +383,8 @@ export const ssePost = (
     onWorkflowFinished,
     onNodeStarted,
     onNodeFinished,
+    onTTSChunk,
+    onTTSEnd,
     onError,
   }: IOtherOptions,
 ) => {
@@ -400,7 +418,7 @@ export const ssePost = (
         onData?.(str, isFirstMessage, moreInfo)
       }, () => {
         onCompleted?.()
-      }, onThought, onMessageEnd, onMessageReplace, onFile, onWorkflowStarted, onWorkflowFinished, onNodeStarted, onNodeFinished)
+      }, onThought, onMessageEnd, onMessageReplace, onFile, onWorkflowStarted, onWorkflowFinished, onNodeStarted, onNodeFinished, onTTSChunk, onTTSEnd)
     })
     .catch((e) => {
       Toast.notify({ type: 'error', message: e })
