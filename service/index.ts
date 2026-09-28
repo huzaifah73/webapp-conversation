@@ -42,7 +42,7 @@ onTTSEnd: IOnTTSEnd
       response_mode: 'streaming',
     },
   }, { onData, onCompleted, onThought, onFile, onError, getAbortController, onMessageEnd, onMessageReplace, onNodeStarted, onWorkflowStarted, onWorkflowFinished, onNodeFinished, onTTSChunk, onTTSEnd
-}
+})
 
 export const fetchConversations = async () => {
   return get('conversations', { params: { limit: 100, first_id: '' } })
