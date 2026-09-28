@@ -618,7 +618,7 @@ const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
             ...draft[currentIndex],
             ...responseItem,
           }
-        }))
+       }),
 onTTSChunk: (messageId, audioStr, audioType) => {
   console.log('TTS CHUNK:', messageId, audioType)
   ttsChunksRef.current.push(audioStr)
