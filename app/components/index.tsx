@@ -624,10 +624,60 @@ onTTSChunk: (messageId, audioStr, audioType) => {
   ttsChunksRef.current.push(audioStr)
 },
 onTTSEnd: (messageId, audioStr) => {
-  console.log('TTS END:', messageId, audioStr)
- console.log('TTS END:', messageId)
-  console.log('TTS AUDIO LENGTH:', audioStr?.length)
-  console.log('TTS AUDIO PREVIEW:', audioStr?.slice(0, 50))
+  console.log('TTS END:', messageId)
+
+  try {
+    const chunks = ttsChunksRef.current.length
+      ? ttsChunksRef.current
+      : [audioStr]
+
+    const byteArrays = chunks.map((chunk) => {
+      const binary = atob(chunk)
+      const bytes = new Uint8Array(binary.length)
+
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i)
+      }
+
+      return bytes
+    })
+
+    const totalLength = byteArrays.reduce(
+      (total, bytes) => total + bytes.length,
+      0,
+    )
+
+    const merged = new Uint8Array(totalLength)
+    let offset = 0
+
+    for (const bytes of byteArrays) {
+      merged.set(bytes, offset)
+      offset += bytes.length
+    }
+
+    const blob = new Blob([merged], { type: 'audio/mpeg' })
+    const url = URL.createObjectURL(blob)
+
+    if (ttsAudioRef.current) {
+      ttsAudioRef.current.pause()
+      URL.revokeObjectURL(ttsAudioRef.current.src)
+    }
+
+    const audio = new Audio(url)
+    ttsAudioRef.current = audio
+
+    audio.play().catch((error) => {
+      console.error('TTS PLAY ERROR:', error)
+    })
+
+    audio.onended = () => {
+      URL.revokeObjectURL(url)
+    }
+
+    ttsChunksRef.current = []
+  } catch (error) {
+    console.error('TTS AUDIO ERROR:', error)
+  }
 },
     })
   }
