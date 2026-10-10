@@ -18,7 +18,7 @@ export const sendChatMessage = async (
     onNodeFinished,
     onWorkflowFinished,
     onTTSChunk,
-onTTSEnd,
+    onTTSEnd,
   }: {
     onData: IOnData
     onCompleted: IOnCompleted
@@ -33,7 +33,7 @@ onTTSEnd,
     onNodeFinished: IOnNodeFinished
     onWorkflowFinished: IOnWorkflowFinished
     onTTSChunk: IOnTTSChunk
-onTTSEnd: IOnTTSEnd
+    onTTSEnd: IOnTTSEnd
   },
 ) => {
   return ssePost('chat-messages', {
@@ -41,7 +41,8 @@ onTTSEnd: IOnTTSEnd
       ...body,
       response_mode: 'streaming',
     },
-  }, { onData, onCompleted, onThought, onFile, onError, getAbortController, onMessageEnd, onMessageReplace, onNodeStarted, onWorkflowStarted, onWorkflowFinished, onNodeFinished, onTTSChunk, onTTSEnd
+  }, { onData, onCompleted, onThought, onFile, onError, getAbortController, onMessageEnd, onMessageReplace, onNodeStarted, onWorkflowStarted, onWorkflowFinished, onNodeFinished, onTTSChunk, onTTSEnd,
+  })
 }
 
 export const fetchConversations = async () => {

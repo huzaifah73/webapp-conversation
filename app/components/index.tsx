@@ -15,11 +15,11 @@ import type { FileUpload } from '@/app/components/base/file-uploader-in-attachme
 import { Resolution, TransferMethod, WorkflowRunningStatus } from '@/types/app'
 import Chat from '@/app/components/chat'
 import { setLocaleOnClient } from '@/i18n/client'
-import useBreakpoints, { MediaType } from '@/hooks/use-breakpoints'
+import { MediaType } from '@/hooks/use-breakpoints'
 import Loading from '@/app/components/base/loading'
 import { replaceVarWithValues, userInputsFormToPromptVariables } from '@/utils/prompt'
 import AppUnavailable from '@/app/components/app-unavailable'
-import { API_KEY, APP_ID, APP_INFO, isShowPrompt, promptTemplate } from '@/config'
+import { APP_ID, APP_INFO, isShowPrompt, promptTemplate } from '@/config'
 import type { Annotation as AnnotationType } from '@/types/log'
 import { addFileInfos, sortAgentSorts } from '@/utils/tools'
 
@@ -28,10 +28,13 @@ export interface IMainProps {
 }
 
 const Main: FC<IMainProps> = () => {
+  console.log('MAIN RENDER')
+  console.log('APP CHECK:', APP_ID, APP_INFO)
   const { t } = useTranslation()
-  const media = useBreakpoints()
+  // const media = useBreakpoints()
+  const media = MediaType.pc
   const isMobile = media === MediaType.mobile
-  const hasSetAppConfig = APP_ID && API_KEY
+  const hasSetAppConfig = APP_ID
 
   /*
   * app info
@@ -104,7 +107,6 @@ const Main: FC<IMainProps> = () => {
 
   const handleConversationSwitch = () => {
     if (!inited) { return }
-
     // update inputs of current conversation
     let notSyncToStateIntroduction = ''
     let notSyncToStateInputs: Record<string, any> | undefined | null = {}
@@ -164,7 +166,7 @@ const Main: FC<IMainProps> = () => {
       setConversationIdChangeBecauseOfNew(false)
     }
     // trigger handleConversationSwitch
-    setCurrConversationId(id, APP_ID)
+    setCurrConversationId(id, APP_ID!)
     hideSidebar()
   }
 
@@ -173,8 +175,76 @@ const Main: FC<IMainProps> = () => {
   */
   const [chatList, setChatList, getChatList] = useGetState<ChatItem[]>([])
   const chatListDomRef = useRef<HTMLDivElement>(null)
-const ttsChunksRef = useRef<string[]>([])
-const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
+  const ttsChunksRef = useRef<string[]>([])
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
+  const fableAudioRef = useRef<HTMLAudioElement | null>(null)
+  const ashAudioRef = useRef<HTMLAudioElement | null>(null)
+  const fableIsPlayingRef = useRef(false)
+  const pendingAshUrlRef = useRef<string | null>(null)
+  const ttsMediaSourceRef = useRef<MediaSource | null>(null)
+  const ttsSourceBufferRef = useRef<SourceBuffer | null>(null)
+  const ttsQueueRef = useRef<ArrayBuffer[]>([])
+  const ttsObjectUrlRef = useRef<string | null>(null)
+  const playTTSChunk = (audioStr: string, audioType?: string) => {
+    if (!audioStr) { return }
+
+    const mimeType = audioType || 'audio/mpeg'
+
+    if (!ttsMediaSourceRef.current) {
+      const mediaSource = new MediaSource()
+
+      ttsMediaSourceRef.current = mediaSource
+
+      const audio = new Audio()
+      audio.autoplay = true
+      ttsAudioRef.current = audio
+
+      const objectUrl = URL.createObjectURL(mediaSource)
+      ttsObjectUrlRef.current = objectUrl
+      audio.src = objectUrl
+
+      mediaSource.addEventListener('sourceopen', () => {
+        if (!ttsSourceBufferRef.current) {
+          ttsSourceBufferRef.current = mediaSource.addSourceBuffer(mimeType)
+        }
+
+        const sourceBuffer = ttsSourceBufferRef.current
+
+        const appendNext = () => {
+          if (!sourceBuffer || sourceBuffer.updating) { return }
+
+          const next = ttsQueueRef.current.shift()
+
+          if (next) {
+            sourceBuffer.appendBuffer(next)
+          }
+        }
+
+        sourceBuffer.addEventListener('updateend', appendNext)
+
+        appendNext()
+      })
+    }
+
+    const binary = atob(audioStr)
+    const bytes = new Uint8Array(binary.length)
+
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+
+    ttsQueueRef.current.push(bytes.buffer)
+
+    const sourceBuffer = ttsSourceBufferRef.current
+
+    if (sourceBuffer && !sourceBuffer.updating) {
+      const next = ttsQueueRef.current.shift()
+
+      if (next) {
+        sourceBuffer.appendBuffer(next)
+      }
+    }
+  }
   useEffect(() => {
     // scroll to bottom with page-level scrolling
     if (chatListDomRef.current) {
@@ -236,10 +306,10 @@ const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
         if (error) {
           Toast.notify({ type: 'error', message: error })
           throw new Error(error)
-          return
         }
-        const _conversationId = getConversationIdFromStorage(APP_ID)
-        const currentConversation = conversations.find(item => item.id === _conversationId)
+        const conversationId = getConversationIdFromStorage(APP_ID!)
+        console.log('STORED CONVERSATION ID:', conversationId)
+        const currentConversation = conversations.find(item => item.id === conversationId)
         const isNotNewConversation = !!currentConversation
 
         // fetch new conversation info
@@ -278,11 +348,12 @@ const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
         })
         setConversationList(conversations as ConversationItem[])
 
-        if (isNotNewConversation) { setCurrConversationId(_conversationId, APP_ID, false) }
+        setCurrConversationId(conversationId, APP_ID!, false)
 
         setInited(true)
       }
       catch (e: any) {
+        console.error('INIT ERROR DETAILS:', e)
         if (e.status === 404) {
           setAppUnavailable(true)
         }
@@ -309,7 +380,7 @@ const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
     let emptyRequiredInput = false
     promptConfig.prompt_variables.forEach((item) => {
       if (item.required && !currInputs[item.key])
-        emptyRequiredInput = true
+      { emptyRequiredInput = true }
     })
 
     if (emptyRequiredInput) {
@@ -475,7 +546,7 @@ const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
         setConversationIdChangeBecauseOfNew(false)
         resetNewConversationInputs()
         setChatNotStarted()
-        setCurrConversationId(tempNewConversationId, APP_ID, true)
+        setCurrConversationId(tempNewConversationId, APP_ID!, true)
         setRespondingFalse()
       },
       onFile(file) {
@@ -610,28 +681,88 @@ const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
         }))
       },
       onNodeFinished: ({ data }) => {
-        const currentIndex = responseItem.workflowProcess!.tracing!.findIndex(item => item.node_id === data.node_id)
+        console.log('NODE FINISHED DATA:', data)
+        if (
+          (data as any).title === 'Text To Speech (2)'
+          && (data as any).files?.[0]?.url
+        ) {
+          const fableAudio = new Audio((data as any).files[0].url)
+
+          fableAudioRef.current = fableAudio
+          fableIsPlayingRef.current = true
+
+          fableAudio.onended = () => {
+            fableIsPlayingRef.current = false
+
+            const ashUrl = pendingAshUrlRef.current
+
+            if (ashUrl) {
+              pendingAshUrlRef.current = null
+
+              setTimeout(() => {
+                const ashAudio = new Audio(ashUrl)
+                ashAudioRef.current = ashAudio
+
+                ashAudio.play().catch((error) => {
+                  console.error('ASH PLAY ERROR:', error)
+                })
+              }, 3000)
+            }
+          }
+
+          fableAudio.play().catch((error) => {
+            console.error('FABLE PLAY ERROR:', error)
+          })
+        }
+
+        if (
+          (data as any).title === 'Text To Speech'
+          && (data as any).files?.[0]?.url
+        ) {
+          const ashUrl = (data as any).files[0].url
+
+          if (fableIsPlayingRef.current) {
+            pendingAshUrlRef.current = ashUrl
+          }
+          else {
+            setTimeout(() => {
+              const ashAudio = new Audio(ashUrl)
+              ashAudioRef.current = ashAudio
+
+              ashAudio.play().catch((error) => {
+                console.error('ASH PLAY ERROR:', error)
+              })
+            }, 3000)
+          }
+        }
+
+        const currentIndex = responseItem.workflowProcess!.tracing!.findIndex(
+          item => item.node_id === data.node_id,
+        )
+
         responseItem.workflowProcess!.tracing[currentIndex] = data as any
+
         setChatList(produce(getChatList(), (draft) => {
-          const currentIndex = draft.findIndex(item => item.id === responseItem.id)
+          const currentIndex = draft.findIndex(
+            item => item.id === responseItem.id,
+          )
+
           draft[currentIndex] = {
             ...draft[currentIndex],
             ...responseItem,
           }
         }))
-onTTSChunk: (messageId, audioStr, audioType) => {
-  console.log('TTS CHUNK:', messageId, audioType)
-  ttsChunksRef.current.push(audioStr)
-},
-onTTSEnd: (messageId, audioStr) => {
-  console.log('TTS END:', messageId, audioStr)
- console.log('TTS END:', messageId)
-  console.log('TTS AUDIO LENGTH:', audioStr?.length)
-  console.log('TTS AUDIO PREVIEW:', audioStr?.slice(0, 50))
-},
+      },
+
+      onTTSChunk: (messageId, audioStr, audioType) => {
+        console.log('TTS CHUNK MASUK:', messageId, audioType, audioStr?.length)
+      },
+
+      onTTSEnd: (messageId, audioStr) => {
+        console.log('TTS END:', new Date().toLocaleTimeString(), messageId, audioStr?.length)
+      },
     })
   }
-
   const handleFeedback = async (messageId: string, feedback: Feedbacktype) => {
     await updateFeedback({ url: `/messages/${messageId}/feedbacks`, body: { rating: feedback.rating } })
     const newChatList = chatList.map((item) => {
@@ -659,9 +790,28 @@ onTTSEnd: (messageId, audioStr) => {
     )
   }
 
-  if (appUnavailable) { return <AppUnavailable isUnknownReason={isUnknownReason} errMessage={!hasSetAppConfig ? 'Please set APP_ID and API_KEY in config/index.tsx' : ''} /> }
+  console.log('APP STATUS:', {
+    APP_ID,
+    APP_INFO,
+    appUnavailable,
+    promptConfig,
+  })
+  if (appUnavailable) {
+    return (
+      <AppUnavailable
+        isUnknownReason={isUnknownReason}
+        errMessage={!hasSetAppConfig ? 'Please set APP_ID in config/index.tsx' : ''}
+      />
+    )
+  }
+  console.log('CONFIG STATUS:', {
+    hasAppId: !!APP_ID,
+    hasAppInfo: !!APP_INFO,
+    hasPromptConfig: !!promptConfig,
+  })
 
   if (!APP_ID || !APP_INFO || !promptConfig) { return <Loading type='app' /> }
+  console.log('CHECK APP:', APP_ID, APP_INFO)
 
   return (
     <div className='bg-gray-100'>
@@ -688,7 +838,7 @@ onTTSEnd: (messageId, audioStr) => {
             hasSetInputs={hasSetInputs}
             isPublicVersion={isShowPrompt}
             siteInfo={APP_INFO}
-            promptConfig={promptConfig}
+            promptConfig={promptConfig!}
             onStartChat={handleStartChat}
             canEditInputs={canEditInputs}
             savedInputs={currInputs as Record<string, any>}
@@ -714,5 +864,4 @@ onTTSEnd: (messageId, audioStr) => {
     </div>
   )
 }
-
 export default React.memo(Main)

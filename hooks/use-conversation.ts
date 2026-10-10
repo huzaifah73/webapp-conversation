@@ -23,7 +23,7 @@ function useConversation() {
   const getConversationIdFromStorage = (appId: string) => {
     const conversationIdInfo = globalThis.localStorage?.getItem(storageConversationIdKey) ? JSON.parse(globalThis.localStorage?.getItem(storageConversationIdKey) || '') : {}
     const id = conversationIdInfo[appId]
-    return id
+    return id || '-1'
   }
 
   const isNewConversation = currConversationId === '-1'

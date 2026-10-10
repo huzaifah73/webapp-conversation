@@ -131,8 +131,8 @@ interface IOtherOptions {
   onWorkflowFinished?: IOnWorkflowFinished
   onNodeStarted?: IOnNodeStarted
   onNodeFinished?: IOnNodeFinished
-  onTTSChunk?: IOnTTSChunk,
-onTTSEnd?: IOnTTSEnd,
+  onTTSChunk?: IOnTTSChunk
+  onTTSEnd?: IOnTTSEnd
 }
 export type IOnTTSChunk = (messageId: string, audioStr: string, audioType?: string) => void
 export type IOnTTSEnd = (messageId: string, audioStr: string) => void
@@ -154,6 +154,8 @@ const handleStream = (
   onWorkflowFinished?: IOnWorkflowFinished,
   onNodeStarted?: IOnNodeStarted,
   onNodeFinished?: IOnNodeFinished,
+  onTTSChunk?: IOnTTSChunk,
+  onTTSEnd?: IOnTTSEnd,
 ) => {
   if (!response.ok) { throw new Error('Network response was not ok') }
 
@@ -176,6 +178,7 @@ const handleStream = (
           if (message.startsWith('data: ')) { // check if it starts with data:
             try {
               bufferObj = JSON.parse(message.substring(6)) as Record<string, any>// remove data: and parse as json
+              console.log('SSE EVENT:', bufferObj.event, bufferObj)
             }
             catch (e) {
               // mute handle message cut off
@@ -214,19 +217,24 @@ const handleStream = (
             else if (bufferObj.event === 'message_end') {
               onMessageEnd?.(bufferObj as MessageEnd)
             }
-              else if (bufferObj.event === 'tts_message') {
-  onTTSChunk?.(
-    bufferObj.message_id,
-    bufferObj.audio,
-    bufferObj.audio_type,
-  )
-}
-else if (bufferObj.event === 'tts_message_end') {
-  onTTSEnd?.(
-    bufferObj.message_id,
-    bufferObj.audio,
-  )
-}
+            else if (bufferObj.event === 'tts_message') {
+              console.log('BASE TTS MESSAGE:', {
+                message_id: bufferObj.message_id,
+                audio_type: bufferObj.audio_type,
+                audio_length: bufferObj.audio?.length,
+              })
+              onTTSChunk?.(
+                bufferObj.message_id,
+                bufferObj.audio,
+                bufferObj.audio_type,
+              )
+            }
+            else if (bufferObj.event === 'tts_message_end') {
+              onTTSEnd?.(
+                bufferObj.message_id,
+                bufferObj.audio,
+              )
+            }
             else if (bufferObj.event === 'message_replace') {
               onMessageReplace?.(bufferObj as MessageReplace)
             }
@@ -240,6 +248,12 @@ else if (bufferObj.event === 'tts_message_end') {
               onNodeStarted?.(bufferObj as NodeStartedResponse)
             }
             else if (bufferObj.event === 'node_finished') {
+              console.log(
+                'RAW NODE FINISHED:',
+                bufferObj.data?.title,
+                bufferObj.data?.node_id,
+                bufferObj.data?.node_type,
+              )
               onNodeFinished?.(bufferObj as NodeFinishedResponse)
             }
           }
@@ -299,7 +313,8 @@ const baseFetch = (url: string, fetchOptions: any, { needAllResponseContent }: I
           // Error handler
           if (!/^(2|3)\d{2}$/.test(res.status)) {
             try {
-              const bodyJson = res.json()
+              console.log('ERROR RESPONSE:', res.status, urlWithPrefix)
+              const bodyJson = res.text()
               switch (res.status) {
                 case 401: {
                   Toast.notify({ type: 'error', message: 'Invalid token' })
