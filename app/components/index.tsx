@@ -185,66 +185,100 @@ const Main: FC<IMainProps> = () => {
   const ttsSourceBufferRef = useRef<SourceBuffer | null>(null)
   const ttsQueueRef = useRef<ArrayBuffer[]>([])
   const ttsObjectUrlRef = useRef<string | null>(null)
+
   const playTTSChunk = (audioStr: string, audioType?: string) => {
-    if (!audioStr) { return }
+    if (!audioStr)
+    { return }
 
     const mimeType = audioType || 'audio/mpeg'
 
+    if (typeof MediaSource === 'undefined' || !MediaSource.isTypeSupported(mimeType)) {
+      console.error('TTS: MediaSource format tidak disokong:', mimeType)
+      return
+    }
+
     if (!ttsMediaSourceRef.current) {
       const mediaSource = new MediaSource()
-
       ttsMediaSourceRef.current = mediaSource
 
       const audio = new Audio()
       audio.autoplay = true
       ttsAudioRef.current = audio
 
+      audio.addEventListener('error', () => {
+        console.error('TTS AUDIO ERROR:', audio.error)
+      })
+
       const objectUrl = URL.createObjectURL(mediaSource)
       ttsObjectUrlRef.current = objectUrl
       audio.src = objectUrl
 
       mediaSource.addEventListener('sourceopen', () => {
-        if (!ttsSourceBufferRef.current) {
-          ttsSourceBufferRef.current = mediaSource.addSourceBuffer(mimeType)
-        }
-
-        const sourceBuffer = ttsSourceBufferRef.current
-
-        const appendNext = () => {
-          if (!sourceBuffer || sourceBuffer.updating) { return }
-
-          const next = ttsQueueRef.current.shift()
-
-          if (next) {
-            sourceBuffer.appendBuffer(next)
+        try {
+          if (!ttsSourceBufferRef.current) {
+            ttsSourceBufferRef.current = mediaSource.addSourceBuffer(mimeType)
           }
+
+          const sourceBuffer = ttsSourceBufferRef.current
+
+          const appendNext = () => {
+            if (!sourceBuffer || sourceBuffer.updating)
+            { return }
+
+            const next = ttsQueueRef.current.shift()
+
+            if (next) {
+              try {
+                sourceBuffer.appendBuffer(next)
+              }
+              catch (error) {
+                console.error('TTS APPEND ERROR:', error)
+              }
+            }
+          }
+
+          sourceBuffer.addEventListener('updateend', appendNext)
+          appendNext()
+
+          audio.play().catch((error) => {
+            console.error('TTS PLAY ERROR:', error)
+          })
         }
-
-        sourceBuffer.addEventListener('updateend', appendNext)
-
-        appendNext()
+        catch (error) {
+          console.error('TTS SOURCE ERROR:', error)
+        }
       })
     }
 
-    const binary = atob(audioStr)
-    const bytes = new Uint8Array(binary.length)
+    try {
+      const binary = atob(audioStr)
+      const bytes = new Uint8Array(binary.length)
 
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i)
-    }
+      for (let i = 0; i < binary.length; i++)
+      { bytes[i] = binary.charCodeAt(i) }
 
-    ttsQueueRef.current.push(bytes.buffer)
+      ttsQueueRef.current.push(bytes.buffer)
 
-    const sourceBuffer = ttsSourceBufferRef.current
+      const sourceBuffer = ttsSourceBufferRef.current
 
-    if (sourceBuffer && !sourceBuffer.updating) {
-      const next = ttsQueueRef.current.shift()
+      if (sourceBuffer && !sourceBuffer.updating) {
+        const next = ttsQueueRef.current.shift()
 
-      if (next) {
-        sourceBuffer.appendBuffer(next)
+        if (next) {
+          try {
+            sourceBuffer.appendBuffer(next)
+          }
+          catch (error) {
+            console.error('TTS APPEND ERROR:', error)
+          }
+        }
       }
     }
+    catch (error) {
+      console.error('TTS DECODE ERROR:', error)
+    }
   }
+
   useEffect(() => {
     // scroll to bottom with page-level scrolling
     if (chatListDomRef.current) {
@@ -755,8 +789,7 @@ const Main: FC<IMainProps> = () => {
 
       onTTSChunk: (messageId, audioStr, audioType) => {
         console.log('TTS CHUNK MASUK:', messageId, audioType, audioStr?.length)
-        if (audioStr)
-        { playTTSChunk(audioStr, audioType) }
+        if (audioStr) { playTTSChunk(audioStr, audioType) }
       },
 
       onTTSEnd: (messageId, audioStr) => {
