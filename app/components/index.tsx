@@ -31,10 +31,10 @@ const Main: FC<IMainProps> = () => {
   console.log('MAIN RENDER')
   console.log('APP CHECK:', APP_ID, APP_INFO)
   const { t } = useTranslation()
-  // const media = useBreakpoints()
   const media = MediaType.pc
-  const isMobile = media === MediaType.mobile
+  const isMobile = false
   const hasSetAppConfig = APP_ID
+  // const media = useBreakpoints()
 
   /*
   * app info
@@ -750,110 +750,123 @@ const Main: FC<IMainProps> = () => {
             ...draft[currentIndex],
             ...responseItem,
           }
-
         }))
       },
 
       onTTSChunk: (messageId, audioStr, audioType) => {
         console.log('TTS CHUNK MASUK:', messageId, audioType, audioStr?.length)
+        if (audioStr)
+        { playTTSChunk(audioStr, audioType) }
       },
 
       onTTSEnd: (messageId, audioStr) => {
         console.log('TTS END:', new Date().toLocaleTimeString(), messageId, audioStr?.length)
       },
     })
-    const handleFeedback = async (messageId: string, feedback: Feedbacktype) => {
-      await updateFeedback({ url: `/messages/${messageId}/feedbacks`, body: { rating: feedback.rating } })
-      const newChatList = chatList.map((item) => {
-        if (item.id === messageId) {
-          return {
-            ...item,
-            feedback,
-          }
+  }
+
+  const handleFeedback = async (messageId: string, feedback: Feedbacktype) => {
+    await updateFeedback({ url: `/messages/${messageId}/feedbacks`, body: { rating: feedback.rating } })
+    const newChatList = chatList.map((item) => {
+      if (item.id === messageId) {
+        return {
+          ...item,
+          feedback,
         }
-        return item
-      })
-      setChatList(newChatList)
-      notify({ type: 'success', message: t('common.api.success') })
-    }
-
-    const renderSidebar = () => {
-      if (!APP_ID || !APP_INFO || !promptConfig) { return null }
-      return (
-        <Sidebar
-          list={conversationList}
-          onCurrentIdChange={handleConversationIdChange}
-          currentId={currConversationId}
-          copyRight={APP_INFO.copyright || APP_INFO.title}
-        />
-      )
-    }
-
-    console.log('APP STATUS:', {
-      APP_ID,
-      APP_INFO,
-      appUnavailable,
-      promptConfig,
+      }
+      return item
     })
-    if (appUnavailable) {
-      return (
-        <AppUnavailable
-          isUnknownReason={isUnknownReason}
-          errMessage={!hasSetAppConfig ? 'Please set APP_ID in config/index.tsx' : ''}
-        />
-      )
-    }
-    console.log('CONFIG STATUS:', {
-      hasAppId: !!APP_ID,
-      hasAppInfo: !!APP_INFO,
-      hasPromptConfig: !!promptConfig,
-    })
+    setChatList(newChatList)
+    notify({ type: 'success', message: t('common.api.success') })
+  }
 
-    if (!APP_ID || !APP_INFO || !promptConfig) { return <Loading type='app' /> }
-    console.log('CHECK APP:', APP_ID, APP_INFO)
-
+  const renderSidebar = () => {
+    if (!APP_ID || !APP_INFO || !promptConfig) { return null }
     return (
-      <div className='bg-gray-100'>
-        <Header
-          title={APP_INFO.title}
-          isMobile={isMobile}
-          onShowSideBar={showSidebar}
-          onCreateNewChat={() => handleConversationIdChange('-1')}
+      <Sidebar
+        list={conversationList}
+        onCurrentIdChange={handleConversationIdChange}
+        currentId={currConversationId}
+        copyRight={APP_INFO.copyright || APP_INFO.title}
+      />
+    )
+  }
+
+  console.log('APP STATUS:', {
+    APP_ID,
+    APP_INFO,
+    appUnavailable,
+    promptConfig,
+  })
+  if (appUnavailable) {
+    return (
+      <AppUnavailable
+        isUnknownReason={isUnknownReason}
+        errMessage={!hasSetAppConfig ? 'Please set APP_ID in config/index.tsx' : ''}
+      />
+    )
+  }
+  console.log('CONFIG STATUS:', {
+    hasAppId: !!APP_ID,
+    hasAppInfo: !!APP_INFO,
+    hasPromptConfig: !!promptConfig,
+  })
+
+  if (!APP_ID || !APP_INFO || !promptConfig) { return <Loading type='app' /> }
+  console.log('CHECK APP:', APP_ID, APP_INFO)
+
+  return (
+    <div className='bg-gray-100'>
+      <Header
+        title={APP_INFO.title}
+        isMobile={isMobile}
+        onShowSideBar={showSidebar}
+        onCreateNewChat={() => handleConversationIdChange('-1')}
+      />
+      <div className="flex rounded-t-2xl bg-white overflow-hidden"></div>
+      {/* sidebar */}
+      {!isMobile && renderSidebar()}
+      {isMobile && isShowSidebar && (
+        <div className='fixed inset-0 z-50' style={{ backgroundColor: 'rgba(35, 56, 118, 0.2)' }} onClick={hideSidebar} >
+          <div className='inline-block' onClick={e => e.stopPropagation()}>
+            {renderSidebar()}
+          </div>
+        </div>
+      )}
+      {/* main */}
+      <div className='flex-grow flex flex-col h-[calc(100vh_-_3rem)] overflow-y-auto'>
+
+        <ConfigSence
+          conversationName={conversationName}
+          hasSetInputs={hasSetInputs}
+          isPublicVersion={isShowPrompt}
+          siteInfo={APP_INFO}
+          promptConfig={promptConfig!}
+          onStartChat={handleStartChat}
+          canEditInputs={canEditInputs}
+          savedInputs={currInputs as Record<string, any>}
+          onInputsChange={setCurrInputs}
         />
-        <div className="flex rounded-t-2xl bg-white overflow-hidden">
-          {/* sidebar */}
-          {!isMobile && renderSidebar()}
-          {isMobile && isShowSidebar && (
-            <div className='fixed inset-0 z-50' style={{ backgroundColor: 'rgba(35, 56, 118, 0.2)' }} onClick={hideSidebar} >
-              <div className='inline-block' onClick={e => e.stopPropagation()}>
-                {renderSidebar()}
-              </div>
-            </div>
-          )}
-          {/* main */}
-          <div className='flex-grow flex flex-col h-[calc(100vh_-_3rem)] overflow-y-auto'>
-            <ConfigSence
-              conversationName={conversationName}
-              hasSetInputs={hasSetInputs}
-              isPublicVersion={isShowPrompt}
-              siteInfo={APP_INFO}
-              promptConfig={promptConfig!}
-              onStartChat={handleStartChat}
-              canEditInputs={canEditInputs}
-              savedInputs={currInputs as Record<string, any>}
-              onInputsChange={setCurrInputs}
-            ></ConfigSence>
-            {
-              hasSetInputs && (
-                <div className='relative grow pc:w-[794px] max-w-full mobile:w-full pb-[180px] mx-auto mb-3.5' ref={chatListDomRef}>
-                  <Chat
-                    chatList={chatList}
-                    onSend={handleSend}
-                    onFeedback={handleFeedback}
-                    isResponding={isResponding}
-                    checkCanSend={checkCanSend}
-                    visionConfig={visionConfig}
-                    fileConfig={fileConfig}
-                  />
-                </div>
-              )
+
+        {hasSetInputs && (
+          <div
+            className="relative grow pc:w-[794px] max-w-full mobile:w-full pb-[180px] mx-auto mb-3.5"
+            ref={chatListDomRef}
+          >
+            <Chat
+              chatList={chatList}
+              onSend={handleSend}
+              onFeedback={handleFeedback}
+              isResponding={isResponding}
+              checkCanSend={checkCanSend}
+              visionConfig={visionConfig}
+              fileConfig={fileConfig}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default React.memo(Main)
